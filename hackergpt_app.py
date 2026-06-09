@@ -131,8 +131,8 @@ Rules:
             model_id = self.MODELS.get(self.current_model, "llama-3.3-70b-versatile")
             
             # Update status
-            page.run_thread(lambda: setattr(status_text, 'value', f"Using {self.current_model}..."))
-            page.run_thread(page.update)
+            page.run_task(lambda: setattr(status_text, 'value', f"Using {self.current_model}..."))
+            page.update()
             
             completion = self.client.chat.completions.create(
                 model=model_id,
