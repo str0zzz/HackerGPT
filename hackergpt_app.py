@@ -1,5 +1,30 @@
-import os
+#!/usr/bin/env python3
+
+# Auto-install missing packages
+import subprocess
 import sys
+
+required_packages = [
+    "flet==0.27.1",
+    "groq==0.19.1",
+    "PyPDF2==0.4.0",
+    "python-docx==1.1.2",
+    "Pillow==10.4.0",
+]
+
+for package in required_packages:
+    try:
+        package_name = package.split("==")[0].replace("-", "_")
+        __import__(package_name)
+    except ImportError:
+        print(f"[*] Installing {package}...")
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "--quiet", package]
+        )
+        print(f"[+] {package} installed")
+
+# Now import everything
+import os
 import asyncio
 import tempfile
 import json
@@ -493,7 +518,6 @@ Rules:
                     try:
                         self.client = Groq(api_key=key)
                         self.save_api_key(key)
-                        # Set env var for this session
                         os.environ["GROQ_API_KEY"] = key
                         status_text.value = "API Key saved"
                     except Exception as ex:
