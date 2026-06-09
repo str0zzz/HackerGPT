@@ -153,6 +153,10 @@ Rules:
             return f"Error: {str(e)}", 0
 
     def main(self, page: ft.Page):
+        # ----------------- ADDED APP ICON -----------------
+        page.icon = "icon.png"  # assets_dir സെറ്റ് ചെയ്തതുകൊണ്ട് 'icon.png' എന്ന് മാത്രം നൽകിയാൽ മതി
+        # --------------------------------------------------
+        
         page.title = "HackerGPT"
         page.theme_mode = ft.ThemeMode.DARK
         page.bgcolor = "#0a0a0f"
@@ -628,7 +632,9 @@ Rules:
 
 
 def main():
-    ft.app(target=HackerGPTApp().main)
+    # ----------------- ADDED ASSETS DIR -----------------
+    ft.app(target=HackerGPTApp().main, assets_dir="assets")
+    # ----------------------------------------------------
 
 
 if __name__ == "__main__":
