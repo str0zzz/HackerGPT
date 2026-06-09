@@ -216,7 +216,7 @@ Rules:
                 ],
                 spacing=8,
             ),
-            padding=ft.padding.only(14, 4, 0, 4),
+            padding=ft.padding.only(14, 4, 14, 4),
         )
         
         file_picker = ft.FilePicker(on_result=lambda e: on_file_picked(e))
@@ -288,7 +288,7 @@ Rules:
                     bottom_right=8 if not is_user else 2,
                 ),
                 padding=12,
-                width=page.width * 0.88 if page.width and page.width > 0 else 320,
+                width=320,
             )
             
             if is_user:
