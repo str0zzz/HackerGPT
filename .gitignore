@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+*.env
+venv/
+.venv/
+
+# Flet build outputs
+build/apk/
+build/ipa/
+build/windows/
+build/macos/
+build/linux/
+
+# Config
+hackergpt_config.json
+.hackergpt_config.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
