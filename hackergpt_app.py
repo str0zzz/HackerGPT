@@ -6,8 +6,8 @@ import sys
 
 required_packages = [
     "flet==0.27.1",
-    "groq==0.19.1",
-    "PyPDF2==0.4.0",
+    "groq==0.19.0",
+    "pypdf2>=3.0.0",
     "python-docx==1.1.2",
     "Pillow==10.4.0",
 ]
