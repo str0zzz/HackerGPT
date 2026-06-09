@@ -182,7 +182,7 @@ Rules:
         # Chat list
         chat_list = ft.ListView(
             spacing=8,
-            padding=ft.padding.only(left=12, right=12, top=12, bottom=12),
+            padding={"left": 12, "right": 12, "top": 12, "bottom": 12},
             auto_scroll=True,
             expand=True,
         )
