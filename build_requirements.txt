@@ -1,0 +1,6 @@
+flet
+groq
+PyPDF2
+python-docx
+Pillow
+httpx
