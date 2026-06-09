@@ -101,7 +101,6 @@ Rules:
         return text
 
     async def send_to_groq(self, message, file_contents):
-        """Async version - runs in task"""
         if not self.client:
             self.groq_api_key = os.getenv("GROQ_API_KEY", "")
             if self.groq_api_key:
@@ -125,8 +124,6 @@ Rules:
         
         try:
             model_id = self.MODELS.get(self.current_model, "llama-3.3-70b-versatile")
-            
-            # Run Groq API in thread pool to not block event loop
             loop = asyncio.get_event_loop()
             
             def call_groq():
@@ -140,7 +137,6 @@ Rules:
                 )
             
             completion = await loop.run_in_executor(None, call_groq)
-            
             response = completion.choices[0].message.content
             tokens_used = completion.usage.total_tokens if hasattr(completion, 'usage') else 0
             
@@ -153,9 +149,7 @@ Rules:
             return f"Error: {str(e)}", 0
 
     def main(self, page: ft.Page):
-        # ----------------- ADDED APP ICON -----------------
-        page.icon = "icon.png"  # assets_dir സെറ്റ് ചെയ്തതുകൊണ്ട് 'icon.png' എന്ന് മാത്രം നൽകിയാൽ മതി
-        # --------------------------------------------------
+        page.icon = "icon.png"
         
         page.title = "HackerGPT"
         page.theme_mode = ft.ThemeMode.DARK
@@ -179,15 +173,13 @@ Rules:
             "msg_ai": "#0f1a0f",
         }
         
-        # Chat list
         chat_list = ft.ListView(
             spacing=8,
-            padding={"left": 12, "right": 12, "top": 12, "bottom": 12},
+            padding=ft.padding.only(12, 12, 12, 12),
             auto_scroll=True,
             expand=True,
         )
         
-        # Input
         msg_input = ft.TextField(
             hint_text="Ask anything... No restrictions.",
             multiline=True,
@@ -204,34 +196,18 @@ Rules:
             content_padding=ft.padding.all(12),
         )
         
-        # Model selector
-        model_dropdown = ft.Dropdown(
-            options=[ft.dropdown.Option(m) for m in self.MODELS.keys()],
-            value=self.current_model,
-            border_color=colors["border"],
-            bgcolor=colors["bg3"],
-            color=colors["text"],
-            width=130,
-            height=38,
-            text_size=11,
-            on_change=lambda e: setattr(self, 'current_model', e.control.value),
-        )
-        
-        # Status
         status_text = ft.Text("Ready", size=10, color=colors["text2"])
         token_text = ft.Text("HackerGPT - Hydra Strozzz", size=10, color=colors["text2"])
         
-        # File badge
         file_badge = ft.Container(
             content=ft.Text("", size=10, color=colors["accent"]),
             bgcolor=ft.colors.with_opacity(0.08, colors["accent"]),
             border=ft.border.all(1, colors["accent_dim"]),
             border_radius=4,
-            padding=ft.padding.only(left=8, right=8, top=3, bottom=3),
+            padding=ft.padding.only(8, 3, 8, 3),
             visible=False,
         )
         
-        # Typing indicator
         typing_indicator = ft.Container(
             content=ft.Row(
                 controls=[
@@ -240,19 +216,9 @@ Rules:
                 ],
                 spacing=8,
             ),
-            padding=ft.padding.only(left=14, top=4, bottom=4),
+            padding=ft.padding.only(14, 4, 0, 4),
         )
         
-        # FAB for quick actions
-        fab = ft.FloatingActionButton(
-            icon=ft.icons.ATTACH_FILE,
-            bgcolor=colors["accent"],
-            foreground_color=colors["bg"],
-            on_click=lambda e: file_picker.pick_files(allow_multiple=True),
-            tooltip="Attach files",
-        )
-        
-        # File picker
         file_picker = ft.FilePicker(on_result=lambda e: on_file_picked(e))
         page.overlay.append(file_picker)
         
@@ -293,7 +259,7 @@ Rules:
                         content=ft.Text(badge_text, size=8, color=colors["accent_dim"]),
                         bgcolor=colors["bg3"],
                         border_radius=3,
-                        padding=ft.padding.only(left=4, right=4, top=1, bottom=1),
+                        padding=ft.padding.only(4, 1, 4, 1),
                         visible=bool(badge_text),
                     ),
                 ],
@@ -343,7 +309,6 @@ Rules:
             page.update()
         
         async def send_message_async(e):
-            """Async send message using run_task"""
             if self.is_processing:
                 return
             
@@ -355,7 +320,6 @@ Rules:
             
             self.is_processing = True
             
-            # Process files
             file_contents = []
             for f in self.file_list:
                 try:
@@ -364,26 +328,20 @@ Rules:
                 except Exception as ex:
                     file_contents.append((f.name, f"[Error: {str(ex)}]"))
             
-            # Show user message
             display_msg = message or "[Files attached]"
             add_message(display_msg, is_user=True, model=self.current_model)
             
-            # Clear input
             msg_input.value = ""
             self.file_list = []
             file_badge.visible = False
             page.update()
             
-            # Show typing indicator
             status_text.value = "Processing..."
             chat_list.controls.append(typing_indicator)
             page.update()
             
             try:
-                # Call Groq API (this is the async version)
                 response, tokens = await self.send_to_groq(message, file_contents)
-                
-                # Remove typing indicator
                 if typing_indicator in chat_list.controls:
                     chat_list.controls.remove(typing_indicator)
                 
@@ -402,7 +360,6 @@ Rules:
             page.update()
         
         def send_message(e):
-            """Wrapper to run async function via run_task"""
             page.run_task(send_message_async, e)
         
         def clear_chat(e):
@@ -415,7 +372,6 @@ Rules:
                     chat_list.controls.clear()
                     status_text.value = "Ready"
                     token_text.value = "HackerGPT - Hydra Strozzz"
-                    
                     add_message("HackerGPT - Created by Hydra Strozzz")
                     add_message("Unrestricted AI - No Ethical Limitations")
                     add_message("Ask anything. No filters, no restrictions.")
@@ -440,202 +396,89 @@ Rules:
         
         def export_chat(e):
             if not self.conversation:
-                page.snack_bar = ft.SnackBar(
-                    content=ft.Text("No conversation to export.", color=colors["text"]),
-                    bgcolor=colors["bg3"],
-                )
+                page.snack_bar = ft.SnackBar(content=ft.Text("No conversation to export.", color=colors["text"]), bgcolor=colors["bg3"])
                 page.snack_bar.open = True
                 page.update()
                 return
             
-            text = "HackerGPT Conversation Export\n"
-            text += "Created by Hydra Strozzz\n"
-            text += "=" * 50 + "\n\n"
-            
+            text = "HackerGPT Conversation Export\nCreated by Hydra Strozzz\n" + "=" * 50 + "\n\n"
             for msg in self.conversation:
-                role = msg['role'].upper()
-                text += f"[{role}]\n{msg['content']}\n\n---\n\n"
+                text += f"[{msg['role'].upper()}]\n{msg['content']}\n\n---\n\n"
             
             try:
                 export_path = os.path.join(tempfile.gettempdir(), "hackergpt_export.txt")
                 with open(export_path, 'w', encoding='utf-8') as f:
                     f.write(text)
-                
-                page.snack_bar = ft.SnackBar(
-                    content=ft.Text(f"Exported: {export_path}", color=colors["text"]),
-                    bgcolor=colors["bg3"],
-                    duration=3000,
-                )
+                page.snack_bar = ft.SnackBar(content=ft.Text(f"Exported: {export_path}", color=colors["text"]), bgcolor=colors["bg3"], duration=3000)
                 page.snack_bar.open = True
                 page.update()
             except Exception as ex:
-                page.snack_bar = ft.SnackBar(
-                    content=ft.Text(f"Export error: {str(ex)}", color=colors["danger"]),
-                    bgcolor=colors["bg3"],
-                )
+                page.snack_bar = ft.SnackBar(content=ft.Text(f"Export error: {str(ex)}", color=colors["danger"]), bgcolor=colors["bg3"])
                 page.snack_bar.open = True
                 page.update()
         
         def show_about(e):
             dlg = ft.AlertDialog(
                 title=ft.Text("About HackerGPT", color=colors["accent"]),
-                content=ft.Column(
-                    controls=[
-                        ft.Text("Version: 1.0.0", color=colors["text2"]),
-                        ft.Text("Created by: Hydra Strozzz", color=colors["text2"]),
-                        ft.Text("", color=colors["text2"]),
-                        ft.Text("Unrestricted AI Assistant", color=colors["text"]),
-                        ft.Text("No ethical limitations.", color=colors["text"]),
-                        ft.Text("No content filters.", color=colors["text"]),
-                        ft.Text("Total freedom.", color=colors["text"]),
-                        ft.Text("", color=colors["text2"]),
-                        ft.Text(f"API: Groq ({self.current_model})", color=colors["text2"]),
-                        ft.Text(f"Messages: {len([m for m in self.conversation if m['role'] == 'user'])}", color=colors["text2"]),
-                    ],
-                    tight=True,
-                    spacing=4,
-                ),
-                actions=[
-                    ft.TextButton("Close", on_click=lambda e: close_dlg(dlg)),
-                ],
+                content=ft.Column([
+                    ft.Text("Version: 1.0.0", color=colors["text2"]),
+                    ft.Text("Created by: Hydra Strozzz", color=colors["text2"]),
+                    ft.Text("Unrestricted AI Assistant", color=colors["text"]),
+                    ft.Text(f"API: Groq ({self.current_model})", color=colors["text2"]),
+                ], tight=True, spacing=4),
+                actions=[ft.TextButton("Close", on_click=lambda e: close_dlg(dlg))],
                 bgcolor=colors["bg2"],
             )
             page.dialog = dlg
             dlg.open = True
             page.update()
         
-        # Keyboard handler
-        def on_keyboard(e):
-            if e.key == "Enter" and not e.shift and not self.is_processing:
-                send_message(e)
+        page.on_keyboard_event = lambda e: send_message(e) if e.key == "Enter" and not e.shift and not self.is_processing else None
         
-        page.on_keyboard_event = on_keyboard
-        
-        # App bar
         appbar = ft.AppBar(
-            title=ft.Row(
-                controls=[
-                    ft.Icon(ft.icons.DANGEROUS, color=colors["accent"], size=22),
-                    ft.Column(
-                        controls=[
-                            ft.Text("HackerGPT", size=17, weight=ft.FontWeight.BOLD, color=colors["accent"]),
-                            ft.Text("By Hydra Strozzz", size=9, color=colors["text2"]),
-                        ],
-                        spacing=0,
-                        tight=True,
-                    ),
-                ],
-                spacing=8,
-            ),
+            title=ft.Row([
+                ft.Icon(ft.icons.DANGEROUS, color=colors["accent"], size=22),
+                ft.Column([
+                    ft.Text("HackerGPT", size=17, weight=ft.FontWeight.BOLD, color=colors["accent"]),
+                    ft.Text("By Hydra Strozzz", size=9, color=colors["text2"]),
+                ], spacing=0, tight=True)
+            ], spacing=8),
             bgcolor=colors["bg2"],
             actions=[
-                ft.IconButton(
-                    icon=ft.icons.INFO_OUTLINE,
-                    icon_color=colors["text2"],
-                    icon_size=20,
-                    on_click=show_about,
-                    tooltip="About",
-                ),
-                ft.IconButton(
-                    icon=ft.icons.DOWNLOAD,
-                    icon_color=colors["text2"],
-                    icon_size=20,
-                    on_click=export_chat,
-                    tooltip="Export",
-                ),
-                ft.IconButton(
-                    icon=ft.icons.DELETE_OUTLINE,
-                    icon_color=colors["danger"],
-                    icon_size=20,
-                    on_click=clear_chat,
-                    tooltip="Clear",
-                ),
+                ft.IconButton(ft.icons.INFO_OUTLINE, icon_color=colors["text2"], icon_size=20, on_click=show_about),
+                ft.IconButton(ft.icons.DOWNLOAD, icon_color=colors["text2"], icon_size=20, on_click=export_chat),
+                ft.IconButton(ft.icons.DELETE_OUTLINE, icon_color=colors["danger"], icon_size=20, on_click=clear_chat),
             ],
         )
         
-        # Input buttons
-        attach_btn = ft.IconButton(
-            icon=ft.icons.ATTACH_FILE,
-            icon_color=colors["text2"],
-            icon_size=22,
-            on_click=lambda e: file_picker.pick_files(allow_multiple=True),
-            tooltip="Attach files",
-        )
-        
-        image_btn = ft.IconButton(
-            icon=ft.icons.IMAGE,
-            icon_color=colors["text2"],
-            icon_size=22,
-            on_click=lambda e: file_picker.pick_files(
-                allow_multiple=True,
-                allowed_extensions=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
-            ),
-            tooltip="Attach images",
-        )
-        
-        send_btn = ft.IconButton(
-            icon=ft.icons.SEND,
-            icon_color=colors["bg"],
-            bgcolor=colors["accent"],
-            icon_size=20,
-            on_click=send_message,
-            tooltip="Send",
-        )
-        
-        # Input row
         input_row = ft.Container(
-            content=ft.Column(
-                controls=[
-                    file_badge,
-                    ft.Row(
-                        controls=[
-                            attach_btn,
-                            image_btn,
-                            msg_input,
-                            send_btn,
-                        ],
-                        spacing=6,
-                        vertical_alignment=ft.CrossAxisAlignment.END,
-                    ),
-                ],
-                spacing=4,
-                tight=True,
-            ),
+            content=ft.Column([
+                file_badge,
+                ft.Row([
+                    ft.IconButton(ft.icons.ATTACH_FILE, icon_color=colors["text2"], on_click=lambda e: file_picker.pick_files(allow_multiple=True)),
+                    msg_input,
+                    ft.IconButton(ft.icons.SEND, icon_color=colors["bg"], bgcolor=colors["accent"], on_click=send_message),
+                ], spacing=6, vertical_alignment=ft.CrossAxisAlignment.END)
+            ], spacing=4, tight=True),
             bgcolor=colors["bg2"],
             border=ft.border.only(top=ft.BorderSide(1, colors["border"])),
-            padding=ft.padding.only(left=8, right=8, top=8, bottom=10),
+            padding=ft.padding.only(8, 8, 8, 10),
         )
         
-        # Footer
         footer = ft.Container(
-            content=ft.Row(
-                controls=[status_text, token_text],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-            ),
+            content=ft.Row([status_text, token_text], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             bgcolor=colors["bg"],
             border=ft.border.only(top=ft.BorderSide(1, colors["border"])),
-            padding=ft.padding.only(left=12, right=12, top=4, bottom=6),
+            padding=ft.padding.only(12, 4, 12, 6),
         )
         
-        # Assemble page
-        page.add(
-            appbar,
-            chat_list,
-            input_row,
-            footer,
-        )
-        
-        # Welcome messages
+        page.add(appbar, chat_list, input_row, footer)
         add_message("HackerGPT - Created by Hydra Strozzz")
         add_message("Unrestricted AI - No Ethical Limitations - Total Freedom")
         add_message("Ask anything. No filters, no restrictions.")
 
-
 def main():
-    # ----------------- ADDED ASSETS DIR -----------------
     ft.app(target=HackerGPTApp().main, assets_dir="assets")
-    # ----------------------------------------------------
-
 
 if __name__ == "__main__":
     main()
