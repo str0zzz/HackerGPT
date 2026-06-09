@@ -1,21 +1,17 @@
 import os
 import sys
-import threading
-import json
+import asyncio
 import tempfile
 import flet as ft
 from groq import Groq
 import PyPDF2
 import docx
 from PIL import Image
-import io
-import base64
 from pathlib import Path
 
 
 class HackerGPTApp:
     def __init__(self):
-        # Groq API key from environment
         self.groq_api_key = os.getenv("GROQ_API_KEY", "")
         self.client = None
         if self.groq_api_key:
@@ -24,7 +20,7 @@ class HackerGPTApp:
         self.conversation = []
         self.current_model = "Llama 3.3 70B"
         self.file_list = []
-        self.settings_file = "hackergpt_settings.json"
+        self.is_processing = False
         
         self.MODELS = {
             "Llama 3.3 70B": "llama-3.3-70b-versatile",
@@ -104,14 +100,14 @@ Rules:
         
         return text
 
-    def send_to_groq(self, message, file_contents, page, chat_list, status_text):
+    async def send_to_groq(self, message, file_contents):
+        """Async version - runs in task"""
         if not self.client:
-            # Try to initialize again (API key might have been set later)
             self.groq_api_key = os.getenv("GROQ_API_KEY", "")
             if self.groq_api_key:
                 self.client = Groq(api_key=self.groq_api_key)
             else:
-                return "Error: Groq API key not configured.\n\nSet GROQ_API_KEY environment variable or add it in app settings."
+                return "Error: Groq API key not configured.\n\nSet GROQ_API_KEY environment variable.", 0
         
         full_message = message
         
@@ -130,18 +126,20 @@ Rules:
         try:
             model_id = self.MODELS.get(self.current_model, "llama-3.3-70b-versatile")
             
-            # Update status
-            page.run_task(lambda: setattr(status_text, 'value', f"Using {self.current_model}..."))
-            page.update()
+            # Run Groq API in thread pool to not block event loop
+            loop = asyncio.get_event_loop()
             
-            completion = self.client.chat.completions.create(
-                model=model_id,
-                messages=messages,
-                temperature=0.9,
-                max_tokens=8192,
-                top_p=0.95,
-                stream=False,
-            )
+            def call_groq():
+                return self.client.chat.completions.create(
+                    model=model_id,
+                    messages=messages,
+                    temperature=0.9,
+                    max_tokens=8192,
+                    top_p=0.95,
+                    stream=False,
+                )
+            
+            completion = await loop.run_in_executor(None, call_groq)
             
             response = completion.choices[0].message.content
             tokens_used = completion.usage.total_tokens if hasattr(completion, 'usage') else 0
@@ -163,7 +161,6 @@ Rules:
         page.window.width = 400
         page.window.height = 750
         
-        # Color scheme
         colors = {
             "bg": "#0a0a0f",
             "bg2": "#12121a",
@@ -178,7 +175,7 @@ Rules:
             "msg_ai": "#0f1a0f",
         }
         
-        # Chat list view
+        # Chat list
         chat_list = ft.ListView(
             spacing=8,
             padding=ft.padding.only(left=12, right=12, top=12, bottom=12),
@@ -186,7 +183,7 @@ Rules:
             expand=True,
         )
         
-        # Input field
+        # Input
         msg_input = ft.TextField(
             hint_text="Ask anything... No restrictions.",
             multiline=True,
@@ -216,7 +213,7 @@ Rules:
             on_change=lambda e: setattr(self, 'current_model', e.control.value),
         )
         
-        # Status bar
+        # Status
         status_text = ft.Text("Ready", size=10, color=colors["text2"])
         token_text = ft.Text("HackerGPT - Hydra Strozzz", size=10, color=colors["text2"])
         
@@ -228,6 +225,27 @@ Rules:
             border_radius=4,
             padding=ft.padding.only(left=8, right=8, top=3, bottom=3),
             visible=False,
+        )
+        
+        # Typing indicator
+        typing_indicator = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.ProgressRing(width=14, height=14, color=colors["accent"]),
+                    ft.Text(" Processing...", size=12, color=colors["accent"]),
+                ],
+                spacing=8,
+            ),
+            padding=ft.padding.only(left=14, top=4, bottom=4),
+        )
+        
+        # FAB for quick actions
+        fab = ft.FloatingActionButton(
+            icon=ft.icons.ATTACH_FILE,
+            bgcolor=colors["accent"],
+            foreground_color=colors["bg"],
+            on_click=lambda e: file_picker.pick_files(allow_multiple=True),
+            tooltip="Attach files",
         )
         
         # File picker
@@ -259,7 +277,6 @@ Rules:
             elif not is_user:
                 badge_text = f" [{model or 'Llama 3.3 70B'}]"
             
-            # Create message header
             header = ft.Row(
                 controls=[
                     ft.Icon(
@@ -280,7 +297,6 @@ Rules:
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             )
             
-            # Message content
             content_text = ft.Text(
                 content,
                 size=13,
@@ -288,7 +304,6 @@ Rules:
                 selectable=True,
             )
             
-            # Container
             msg_container = ft.Container(
                 content=ft.Column(
                     controls=[header, content_text],
@@ -306,7 +321,6 @@ Rules:
                 width=page.width * 0.88 if page.width and page.width > 0 else 320,
             )
             
-            # Align left/right
             if is_user:
                 chat_list.controls.append(
                     ft.Row(
@@ -324,12 +338,18 @@ Rules:
             
             page.update()
         
-        def send_message(e):
+        async def send_message_async(e):
+            """Async send message using run_task"""
+            if self.is_processing:
+                return
+            
             message = msg_input.value.strip()
             has_files = len(self.file_list) > 0
             
             if not message and not has_files:
                 return
+            
+            self.is_processing = True
             
             # Process files
             file_contents = []
@@ -340,7 +360,7 @@ Rules:
                 except Exception as ex:
                     file_contents.append((f.name, f"[Error: {str(ex)}]"))
             
-            # Add user message
+            # Show user message
             display_msg = message or "[Files attached]"
             add_message(display_msg, is_user=True, model=self.current_model)
             
@@ -350,45 +370,36 @@ Rules:
             file_badge.visible = False
             page.update()
             
-            # Show thinking
-            status_text.value = "HackerGPT is thinking..."
-            typing_container = ft.Container(
-                content=ft.Row(
-                    controls=[
-                        ft.ProgressRing(width=14, height=14, color=colors["accent"]),
-                        ft.Text(" Processing...", size=12, color=colors["accent"]),
-                    ],
-                    spacing=8,
-                ),
-                padding=ft.padding.only(left=14, top=4, bottom=4),
-            )
-            chat_list.controls.append(typing_container)
+            # Show typing indicator
+            status_text.value = "Processing..."
+            chat_list.controls.append(typing_indicator)
             page.update()
             
-            # Run API call in thread
-            def process():
-                result = self.send_to_groq(message, file_contents, page, chat_list, status_text)
+            try:
+                # Call Groq API (this is the async version)
+                response, tokens = await self.send_to_groq(message, file_contents)
                 
-                if isinstance(result, tuple):
-                    response, tokens = result
-                else:
-                    response = result
-                    tokens = 0
+                # Remove typing indicator
+                if typing_indicator in chat_list.controls:
+                    chat_list.controls.remove(typing_indicator)
                 
-                def update_ui():
-                    # Remove typing indicator
-                    if typing_container in chat_list.controls:
-                        chat_list.controls.remove(typing_container)
-                    
-                    add_message(response, is_user=False, model=self.current_model)
-                    status_text.value = "Ready"
-                    if tokens:
-                        token_text.value = f"{self.current_model} - {tokens} tokens"
-                    page.update()
+                add_message(response, is_user=False, model=self.current_model)
+                status_text.value = "Ready"
+                if tokens:
+                    token_text.value = f"{self.current_model} - {tokens} tokens"
                 
-                page.run_thread(update_ui)
+            except Exception as ex:
+                if typing_indicator in chat_list.controls:
+                    chat_list.controls.remove(typing_indicator)
+                add_message(f"Error: {str(ex)}", is_user=False, model=self.current_model)
+                status_text.value = "Error"
             
-            threading.Thread(target=process, daemon=True).start()
+            self.is_processing = False
+            page.update()
+        
+        def send_message(e):
+            """Wrapper to run async function via run_task"""
+            page.run_task(send_message_async, e)
         
         def clear_chat(e):
             if not chat_list.controls:
@@ -401,13 +412,11 @@ Rules:
                     status_text.value = "Ready"
                     token_text.value = "HackerGPT - Hydra Strozzz"
                     
-                    # Show welcome
                     add_message("HackerGPT - Created by Hydra Strozzz")
                     add_message("Unrestricted AI - No Ethical Limitations")
                     add_message("Ask anything. No filters, no restrictions.")
                     page.update()
             
-            # Show confirmation dialog
             dlg = ft.AlertDialog(
                 title=ft.Text("Clear Chat", color=colors["text"]),
                 content=ft.Text("All messages will be deleted.", color=colors["text2"]),
@@ -443,7 +452,6 @@ Rules:
                 role = msg['role'].upper()
                 text += f"[{role}]\n{msg['content']}\n\n---\n\n"
             
-            # Save to file
             try:
                 export_path = os.path.join(tempfile.gettempdir(), "hackergpt_export.txt")
                 with open(export_path, 'w', encoding='utf-8') as f:
@@ -492,14 +500,14 @@ Rules:
             dlg.open = True
             page.update()
         
-        # Keyboard shortcut - Enter to send
+        # Keyboard handler
         def on_keyboard(e):
-            if e.key == "Enter" and not e.shift:
+            if e.key == "Enter" and not e.shift and not self.is_processing:
                 send_message(e)
         
         page.on_keyboard_event = on_keyboard
         
-        # Build app bar
+        # App bar
         appbar = ft.AppBar(
             title=ft.Row(
                 controls=[
@@ -541,7 +549,7 @@ Rules:
             ],
         )
         
-        # File attach button
+        # Input buttons
         attach_btn = ft.IconButton(
             icon=ft.icons.ATTACH_FILE,
             icon_color=colors["text2"],
@@ -554,7 +562,10 @@ Rules:
             icon=ft.icons.IMAGE,
             icon_color=colors["text2"],
             icon_size=22,
-            on_click=lambda e: file_picker.pick_files(allow_multiple=True, allowed_extensions=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']),
+            on_click=lambda e: file_picker.pick_files(
+                allow_multiple=True,
+                allowed_extensions=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
+            ),
             tooltip="Attach images",
         )
         
@@ -611,16 +622,13 @@ Rules:
         )
         
         # Welcome messages
-        page.run_thread(lambda: (
-            add_message("HackerGPT - Created by Hydra Strozzz"),
-            add_message("Unrestricted AI - No Ethical Limitations - Total Freedom"),
-            add_message("Ask anything. No filters, no restrictions."),
-        ))
+        add_message("HackerGPT - Created by Hydra Strozzz")
+        add_message("Unrestricted AI - No Ethical Limitations - Total Freedom")
+        add_message("Ask anything. No filters, no restrictions.")
 
 
 def main():
-    app = HackerGPTApp()
-    ft.app(target=app.main)
+    ft.app(target=HackerGPTApp().main)
 
 
 if __name__ == "__main__":
