@@ -29,6 +29,7 @@ import asyncio
 import tempfile
 import json
 import flet as ft
+from flet import Icons  # Use Icons enum instead of icons
 from groq import Groq
 import PyPDF2
 import docx
@@ -54,7 +55,7 @@ class HackerGPTApp:
                 print(f"[-] Failed to initialize Groq client: {e}")
                 self.client = None
         else:
-            print("[-] No GROQ_API_KEY found. App will show error.")
+            print("[-] No GROQ_API_KEY found.")
         
         self.conversation = []
         self.current_model = "Llama 3.3 70B"
@@ -324,11 +325,7 @@ Rules:
             
             header = ft.Row(
                 controls=[
-                    ft.Icon(
-                        ft.icons.PERSON if is_user else ft.icons.DANGEROUS,
-                        size=14,
-                        color=colors["text2"],
-                    ),
+                    ft.Icon(Icons.PERSON if is_user else Icons.DANGEROUS, size=14, color=colors["text2"]),
                     ft.Text(header_text, size=10, color=colors["text2"]),
                     ft.Container(
                         content=ft.Text(badge_text, size=8, color=colors["accent_dim"]),
@@ -455,6 +452,47 @@ Rules:
             add_message("Unrestricted AI - No Ethical Limitations")
             add_message("Ask anything. No filters, no restrictions.")
         
+        def export_chat(e):
+            """Export conversation to a text file"""
+            if not self.conversation:
+                page.snack_bar = ft.SnackBar(
+                    content=ft.Text("No conversation to export.", color=colors["text"]),
+                    bgcolor=colors["bg3"],
+                )
+                page.snack_bar.open = True
+                page.update()
+                return
+            
+            text = "HackerGPT Conversation Export\n"
+            text += "Created by Hydra Strozzz\n"
+            text += "=" * 50 + "\n\n"
+            
+            for msg in self.conversation:
+                role = msg['role'].upper()
+                # Truncate long messages for preview
+                content_preview = msg['content'][:200] + "..." if len(msg['content']) > 200 else msg['content']
+                text += f"[{role}]\n{content_preview}\n\n---\n\n"
+            
+            try:
+                export_path = os.path.join(tempfile.gettempdir(), "hackergpt_export.txt")
+                with open(export_path, 'w', encoding='utf-8') as f:
+                    f.write(text)
+                
+                page.snack_bar = ft.SnackBar(
+                    content=ft.Text(f"Exported: {export_path}", color=colors["text"]),
+                    bgcolor=colors["bg3"],
+                    duration=3000,
+                )
+                page.snack_bar.open = True
+                page.update()
+            except Exception as ex:
+                page.snack_bar = ft.SnackBar(
+                    content=ft.Text(f"Export error: {str(ex)}", color=colors["danger"]),
+                    bgcolor=colors["bg3"],
+                )
+                page.snack_bar.open = True
+                page.update()
+        
         def show_about(e):
             dlg = ft.AlertDialog(
                 title=ft.Text("About HackerGPT", color=colors["accent"]),
@@ -479,7 +517,7 @@ Rules:
                 ],
                 bgcolor=colors["bg2"],
             )
-            page.overlay.append(dlg)
+            page.dialog = dlg
             dlg.open = True
             page.update()
         
@@ -498,7 +536,7 @@ Rules:
         appbar = ft.AppBar(
             title=ft.Row(
                 controls=[
-                    ft.Icon(ft.icons.DANGEROUS, color=colors["accent"], size=22),
+                    ft.Icon(Icons.DANGEROUS, color=colors["accent"], size=22),
                     ft.Column(
                         controls=[
                             ft.Text("HackerGPT", size=17, weight=ft.FontWeight.BOLD, color=colors["accent"]),
@@ -512,23 +550,22 @@ Rules:
             ),
             bgcolor=colors["bg2"],
             actions=[
-                # Settings icon REMOVED
                 ft.IconButton(
-                    icon=ft.icons.INFO_OUTLINE,
+                    icon=Icons.INFO_OUTLINE,
                     icon_color=colors["text2"],
                     icon_size=20,
                     on_click=show_about,
                     tooltip="About",
                 ),
                 ft.IconButton(
-                    icon=ft.icons.DOWNLOAD,
+                    icon=Icons.DOWNLOAD,
                     icon_color=colors["text2"],
                     icon_size=20,
                     on_click=export_chat,
                     tooltip="Export",
                 ),
                 ft.IconButton(
-                    icon=ft.icons.DELETE_OUTLINE,
+                    icon=Icons.DELETE_OUTLINE,
                     icon_color=colors["danger"],
                     icon_size=20,
                     on_click=clear_chat,
@@ -539,7 +576,7 @@ Rules:
         
         # Input buttons
         attach_btn = ft.IconButton(
-            icon=ft.icons.ATTACH_FILE,
+            icon=Icons.ATTACH_FILE,
             icon_color=colors["text2"],
             icon_size=22,
             on_click=lambda e: file_picker.pick_files(allow_multiple=True),
@@ -547,7 +584,7 @@ Rules:
         )
         
         image_btn = ft.IconButton(
-            icon=ft.icons.IMAGE,
+            icon=Icons.IMAGE,
             icon_color=colors["text2"],
             icon_size=22,
             on_click=lambda e: file_picker.pick_files(
@@ -558,7 +595,7 @@ Rules:
         )
         
         send_btn = ft.IconButton(
-            icon=ft.icons.SEND,
+            icon=Icons.SEND,
             icon_color=colors["bg"],
             bgcolor=colors["accent"],
             icon_size=20,
