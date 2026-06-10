@@ -10,6 +10,7 @@ required_packages = [
     "pypdf2>=3.0.0",
     "python-docx==1.1.2",
     "Pillow==10.4.0",
+    "python-dotenv>=1.0.0",
 ]
 
 for package in required_packages:
@@ -29,17 +30,21 @@ import asyncio
 import tempfile
 import json
 import flet as ft
-from flet import Icons  # Use Icons enum instead of icons
+from flet import Icons
 from groq import Groq
 import PyPDF2
 import docx
 from PIL import Image
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env file if it exists (for local/Codespaces development)
+load_dotenv()
 
 
 class HackerGPTApp:
     def __init__(self):
-        # Load API key ONLY from env var (GitHub Codespaces secret)
+        # Load API key from env var (GitHub Codespaces Secret OR .env file OR system env)
         self.groq_api_key = os.getenv("GROQ_API_KEY", "")
         
         # Also try loading from config file (for build/apk users)
@@ -392,9 +397,10 @@ Rules:
             
             self.is_processing = True
             
-            # Process files
+            # Process files BEFORE clearing anything
             file_contents = []
-            for f in self.file_list:
+            current_files = list(self.file_list)  # Copy the list
+            for f in current_files:
                 try:
                     content = self.extract_text_from_file(f.path)
                     file_contents.append((f.name, content))
@@ -405,9 +411,8 @@ Rules:
             display_msg = message or "[Files attached]"
             add_message(display_msg, is_user=True, model=self.current_model)
             
-            # Clear input
+            # Clear input - but NOT files yet
             msg_input.value = ""
-            self.file_list = []
             file_badge.visible = False
             page.update()
             
@@ -432,6 +437,8 @@ Rules:
                 add_message(f"Error: {str(ex)}", is_user=False)
                 status_text.value = "Error"
             
+            # NOW clear the file list after successful send
+            self.file_list = []
             self.is_processing = False
             page.update()
         
@@ -469,7 +476,6 @@ Rules:
             
             for msg in self.conversation:
                 role = msg['role'].upper()
-                # Truncate long messages for preview
                 content_preview = msg['content'][:200] + "..." if len(msg['content']) > 200 else msg['content']
                 text += f"[{role}]\n{content_preview}\n\n---\n\n"
             
@@ -532,7 +538,7 @@ Rules:
         
         page.on_keyboard_event = on_keyboard
         
-        # App Bar - NO SETTINGS ICON
+        # App Bar
         appbar = ft.AppBar(
             title=ft.Row(
                 controls=[
