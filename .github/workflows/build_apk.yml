@@ -26,13 +26,12 @@ jobs:
           
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
-        with:
-          accept-license-terms: true
-          
+        
       - name: Build APK
         run: |
           pip install flet-cli
-          flet build apk --accept-all-licenses
+          yes | sdkmanager --licenses || true
+          flet build apk
           
       - name: Upload APK
         uses: actions/upload-artifact@v4
