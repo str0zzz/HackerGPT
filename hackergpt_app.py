@@ -266,7 +266,6 @@ Rules:
             bgcolor=colors["bg3"],
             color=colors["text"],
             width=130,
-            height=38,
             text_size=11,
             on_change=lambda e: setattr(self, 'current_model', e.control.value),
         )
