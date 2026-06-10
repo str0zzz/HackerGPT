@@ -17,7 +17,7 @@ for package in required_packages:
     try:
         package_name = package.split("==")[0].replace("-", "_")
         __import__(package_name)
-    except ImportError:
+    except PackageNotFoundError:
         print(f"[*] Installing {package}...")
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install", "--quiet", package]
@@ -63,7 +63,8 @@ class HackerGPTApp:
             print("[-] No GROQ_API_KEY found.")
         
         self.conversation = []
-        self.current_model = "Llama 3.3 70B"
+        # Use Llama 3.1 8B as default - cheaper on tokens, less rate limit issues
+        self.current_model = "Llama 3.1 8B"
         self.file_list = []
         self.is_processing = False
         
@@ -162,6 +163,10 @@ Rules:
         except Exception as e:
             text = f"[Error reading file {Path(file_path).name}: {str(e)}]"
         
+        # Truncate file content to 2000 chars to save tokens
+        if len(text) > 2000:
+            text = text[:2000] + f"\n\n[... Truncated, full file is {len(text)} chars. Showing first 2000 chars.]"
+        
         return text
 
     async def send_to_groq(self, message, file_contents):
@@ -178,13 +183,13 @@ Rules:
         
         messages = [{"role": "system", "content": self.SYSTEM_PROMPT}]
         
-        for msg in self.conversation[-20:]:
+        for msg in self.conversation[-10:]:  # Only last 10 messages to save tokens
             messages.append(msg)
         
         messages.append({"role": "user", "content": full_message})
         
         try:
-            model_id = self.MODELS.get(self.current_model, "llama-3.3-70b-versatile")
+            model_id = self.MODELS.get(self.current_model, "llama-3.1-8b-instant")
             loop = asyncio.get_event_loop()
             
             def call_groq():
@@ -192,7 +197,7 @@ Rules:
                     model=model_id,
                     messages=messages,
                     temperature=0.9,
-                    max_tokens=8192,
+                    max_tokens=2048,  # Reduced from 8192 to prevent rate limit
                     top_p=0.95,
                     stream=False,
                 )
@@ -326,7 +331,7 @@ Rules:
             if is_user and model:
                 badge_text = f" [{model}]"
             elif not is_user:
-                badge_text = f" [{model or 'Llama 3.3 70B'}]"
+                badge_text = f" [{model or 'Llama 3.1 8B'}]"
             
             header = ft.Row(
                 controls=[
