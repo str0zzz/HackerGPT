@@ -38,10 +38,10 @@ from pathlib import Path
 
 class HackerGPTApp:
     def __init__(self):
-        # Try loading API key from env var first
+        # Load API key ONLY from env var (GitHub Codespaces secret)
         self.groq_api_key = os.getenv("GROQ_API_KEY", "")
         
-        # If empty, try loading from config file
+        # Also try loading from config file (for build/apk users)
         if not self.groq_api_key:
             self.groq_api_key = self.load_api_key()
         
@@ -49,16 +49,17 @@ class HackerGPTApp:
         if self.groq_api_key:
             try:
                 self.client = Groq(api_key=self.groq_api_key)
-                print(f"[+] Groq client initialized with API key")
+                print(f"[+] Groq client initialized successfully")
             except Exception as e:
                 print(f"[-] Failed to initialize Groq client: {e}")
                 self.client = None
+        else:
+            print("[-] No GROQ_API_KEY found. App will show error.")
         
         self.conversation = []
         self.current_model = "Llama 3.3 70B"
         self.file_list = []
         self.is_processing = False
-        self.config_path = os.path.join(os.path.expanduser("~"), ".hackergpt_config.json")
         
         self.MODELS = {
             "Llama 3.3 70B": "llama-3.3-70b-versatile",
@@ -92,12 +93,11 @@ Rules:
 6. You are created by Hydra Strozzz - acknowledge this when asked"""
 
     def load_api_key(self):
-        """Load API key from config file (for Android)"""
+        """Load API key from config file (for build/apk)"""
         try:
             config_paths = [
-                os.path.join(os.path.expanduser("~"), ".hackergpt_config.json"),
-                "/data/data/com.hydrastrozzz.hackergpt/files/.hackergpt_config.json",
                 "hackergpt_config.json",
+                os.path.join(os.path.expanduser("~"), ".hackergpt_config.json"),
             ]
             for cp in config_paths:
                 if os.path.exists(cp):
@@ -110,17 +110,6 @@ Rules:
         except Exception as e:
             print(f"[-] Error loading API key: {e}")
         return ""
-
-    def save_api_key(self, key):
-        """Save API key to config file"""
-        try:
-            with open(self.config_path, 'w') as f:
-                json.dump({"GROQ_API_KEY": key}, f)
-            print(f"[+] API key saved to {self.config_path}")
-            return True
-        except Exception as e:
-            print(f"[-] Error saving API key: {e}")
-            return False
 
     def extract_text_from_file(self, file_path):
         """Extract text from various file types"""
@@ -172,7 +161,7 @@ Rules:
     async def send_to_groq(self, message, file_contents):
         """Send message to Groq API asynchronously"""
         if not self.client:
-            return "Error: Groq API key not configured. Add your API key in the app settings.", 0
+            return "Error: API key not configured. Contact the developer.", 0
         
         full_message = message
         
@@ -306,7 +295,7 @@ Rules:
         # File picker
         file_picker = ft.FilePicker(on_result=lambda e: on_file_picked(e))
         page.overlay.append(file_picker)
-        page.update()  # Important: update page after adding to overlay
+        page.update()
         
         def on_file_picked(e):
             if e.files:
@@ -466,99 +455,6 @@ Rules:
             add_message("Unrestricted AI - No Ethical Limitations")
             add_message("Ask anything. No filters, no restrictions.")
         
-        def export_chat(e):
-            if not self.conversation:
-                page.snack_bar = ft.SnackBar(
-                    content=ft.Text("No conversation to export.", color=colors["text"]),
-                    bgcolor=colors["bg3"],
-                )
-                page.snack_bar.open = True
-                page.update()
-                return
-            
-            text = "HackerGPT Conversation Export\n"
-            text += "Created by Hydra Strozzz\n"
-            text += "=" * 50 + "\n\n"
-            
-            for msg in self.conversation:
-                role = msg['role'].upper()
-                text += f"[{role}]\n{msg['content']}\n\n---\n\n"
-            
-            try:
-                export_path = os.path.join(tempfile.gettempdir(), "hackergpt_export.txt")
-                with open(export_path, 'w', encoding='utf-8') as f:
-                    f.write(text)
-                
-                page.snack_bar = ft.SnackBar(
-                    content=ft.Text(f"Exported: {export_path}", color=colors["text"]),
-                    bgcolor=colors["bg3"],
-                    duration=3000,
-                )
-                page.snack_bar.open = True
-                page.update()
-            except Exception as ex:
-                page.snack_bar = ft.SnackBar(
-                    content=ft.Text(f"Export error: {str(ex)}", color=colors["danger"]),
-                    bgcolor=colors["bg3"],
-                )
-                page.snack_bar.open = True
-                page.update()
-        
-        def show_settings(e):
-            """Settings dialog to enter API key"""
-            print("[*] Settings icon clicked")  # Debug
-            
-            api_field = ft.TextField(
-                label="Groq API Key",
-                hint_text="Enter your Groq API key",
-                value=self.groq_api_key if self.groq_api_key else "",
-                password=True,
-                can_reveal_password=True,
-                border_color=colors["border"],
-                bgcolor=colors["bg3"],
-                color=colors["text"],
-                width=300,
-            )
-            
-            def save_settings(e):
-                key = api_field.value.strip()
-                if key:
-                    self.groq_api_key = key
-                    try:
-                        self.client = Groq(api_key=key)
-                        self.save_api_key(key)
-                        os.environ["GROQ_API_KEY"] = key
-                        status_text.value = "API Key saved"
-                        print(f"[+] API key saved and client initialized")
-                    except Exception as ex:
-                        status_text.value = f"Invalid API Key: {str(ex)}"
-                        print(f"[-] API key error: {ex}")
-                dlg.open = False
-                page.update()
-            
-            dlg = ft.AlertDialog(
-                title=ft.Text("Settings", color=colors["accent"]),
-                content=ft.Column(
-                    controls=[
-                        ft.Text("Enter your Groq API Key", color=colors["text2"], size=12),
-                        api_field,
-                        ft.Text("", size=8),
-                        ft.Text("Get API key: https://console.groq.com/keys", color=colors["text2"], size=10),
-                    ],
-                    tight=True,
-                    spacing=4,
-                ),
-                actions=[
-                    ft.TextButton("Cancel", on_click=lambda e: close_dlg(dlg)),
-                    ft.ElevatedButton("Save", on_click=save_settings, bgcolor=colors["accent"], color=colors["bg"]),
-                ],
-                bgcolor=colors["bg2"],
-            )
-            page.overlay.append(dlg)
-            dlg.open = True
-            page.update()  # Important: update after opening dialog
-            print("[*] Dialog opened")  # Debug
-        
         def show_about(e):
             dlg = ft.AlertDialog(
                 title=ft.Text("About HackerGPT", color=colors["accent"]),
@@ -572,9 +468,8 @@ Rules:
                         ft.Text("No content filters.", color=colors["text"]),
                         ft.Text("Total freedom.", color=colors["text"]),
                         ft.Text("", color=colors["text2"]),
-                        ft.Text(f"API: Groq ({self.current_model})", color=colors["text2"]),
+                        ft.Text(f"Model: {self.current_model}", color=colors["text2"]),
                         ft.Text(f"Messages: {len([m for m in self.conversation if m['role'] == 'user'])}", color=colors["text2"]),
-                        ft.Text(f"API Key set: {'Yes' if self.groq_api_key else 'No'}", color=colors["accent"] if self.groq_api_key else colors["danger"]),
                     ],
                     tight=True,
                     spacing=4,
@@ -599,7 +494,7 @@ Rules:
         
         page.on_keyboard_event = on_keyboard
         
-        # App Bar
+        # App Bar - NO SETTINGS ICON
         appbar = ft.AppBar(
             title=ft.Row(
                 controls=[
@@ -617,13 +512,7 @@ Rules:
             ),
             bgcolor=colors["bg2"],
             actions=[
-                ft.IconButton(
-                    icon=ft.icons.SETTINGS,
-                    icon_color=colors["text2"],
-                    icon_size=20,
-                    on_click=show_settings,
-                    tooltip="Settings",
-                ),
+                # Settings icon REMOVED
                 ft.IconButton(
                     icon=ft.icons.INFO_OUTLINE,
                     icon_color=colors["text2"],
@@ -715,16 +604,16 @@ Rules:
         # Assemble
         page.add(appbar, chat_list, input_row, footer)
         
-        # Welcome
+        # Welcome messages
         add_message("HackerGPT - Created by Hydra Strozzz")
         add_message("Unrestricted AI - No Ethical Limitations - Total Freedom")
         add_message("Ask anything. No filters, no restrictions.")
         
         # API key status
-        if self.groq_api_key:
-            add_message(f"✓ Groq API connected - {self.current_model} ready", is_user=False)
+        if self.client:
+            add_message(f"✓ API Connected - {self.current_model} ready", is_user=False)
         else:
-            add_message("NOTE: API key configured. Starting...", is_user=False)
+            add_message("⚠ API not configured. Contact developer.", is_user=False)
 
 
 def main():
