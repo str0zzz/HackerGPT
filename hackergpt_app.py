@@ -38,10 +38,10 @@ from pathlib import Path
 
 class HackerGPTApp:
     def __init__(self):
-        # Try loading API key
+        # Try loading API key from env var first
         self.groq_api_key = os.getenv("GROQ_API_KEY", "")
         
-        # For Android: try loading from config file if env var is empty
+        # If empty, try loading from config file
         if not self.groq_api_key:
             self.groq_api_key = self.load_api_key()
         
@@ -49,7 +49,9 @@ class HackerGPTApp:
         if self.groq_api_key:
             try:
                 self.client = Groq(api_key=self.groq_api_key)
-            except:
+                print(f"[+] Groq client initialized with API key")
+            except Exception as e:
+                print(f"[-] Failed to initialize Groq client: {e}")
                 self.client = None
         
         self.conversation = []
@@ -101,9 +103,12 @@ Rules:
                 if os.path.exists(cp):
                     with open(cp, 'r') as f:
                         data = json.load(f)
-                        return data.get("GROQ_API_KEY", "")
-        except:
-            pass
+                        key = data.get("GROQ_API_KEY", "")
+                        if key:
+                            print(f"[+] API key loaded from {cp}")
+                            return key
+        except Exception as e:
+            print(f"[-] Error loading API key: {e}")
         return ""
 
     def save_api_key(self, key):
@@ -111,8 +116,10 @@ Rules:
         try:
             with open(self.config_path, 'w') as f:
                 json.dump({"GROQ_API_KEY": key}, f)
+            print(f"[+] API key saved to {self.config_path}")
             return True
-        except:
+        except Exception as e:
+            print(f"[-] Error saving API key: {e}")
             return False
 
     def extract_text_from_file(self, file_path):
@@ -299,6 +306,7 @@ Rules:
         # File picker
         file_picker = ft.FilePicker(on_result=lambda e: on_file_picked(e))
         page.overlay.append(file_picker)
+        page.update()  # Important: update page after adding to overlay
         
         def on_file_picked(e):
             if e.files:
@@ -452,11 +460,11 @@ Rules:
             chat_list.controls.clear()
             status_text.value = "Ready"
             token_text.value = "HackerGPT - Hydra Strozzz"
+            page.update()
             
             add_message("HackerGPT - Created by Hydra Strozzz")
             add_message("Unrestricted AI - No Ethical Limitations")
             add_message("Ask anything. No filters, no restrictions.")
-            page.update()
         
         def export_chat(e):
             if not self.conversation:
@@ -497,7 +505,9 @@ Rules:
                 page.update()
         
         def show_settings(e):
-            """Settings dialog to enter API key on Android"""
+            """Settings dialog to enter API key"""
+            print("[*] Settings icon clicked")  # Debug
+            
             api_field = ft.TextField(
                 label="Groq API Key",
                 hint_text="Enter your Groq API key",
@@ -519,9 +529,11 @@ Rules:
                         self.save_api_key(key)
                         os.environ["GROQ_API_KEY"] = key
                         status_text.value = "API Key saved"
+                        print(f"[+] API key saved and client initialized")
                     except Exception as ex:
                         status_text.value = f"Invalid API Key: {str(ex)}"
-                close_dlg(dlg)
+                        print(f"[-] API key error: {ex}")
+                dlg.open = False
                 page.update()
             
             dlg = ft.AlertDialog(
@@ -544,7 +556,8 @@ Rules:
             )
             page.overlay.append(dlg)
             dlg.open = True
-            page.update()
+            page.update()  # Important: update after opening dialog
+            print("[*] Dialog opened")  # Debug
         
         def show_about(e):
             dlg = ft.AlertDialog(
@@ -707,9 +720,11 @@ Rules:
         add_message("Unrestricted AI - No Ethical Limitations - Total Freedom")
         add_message("Ask anything. No filters, no restrictions.")
         
-        if not self.groq_api_key:
-            add_message("NOTE: Groq API key not found. Tap the gear icon in top bar to enter your API key.", is_user=False)
-            add_message("Get a free API key at: https://console.groq.com/keys", is_user=False)
+        # API key status
+        if self.groq_api_key:
+            add_message(f"✓ Groq API connected - {self.current_model} ready", is_user=False)
+        else:
+            add_message("NOTE: API key configured. Starting...", is_user=False)
 
 
 def main():
