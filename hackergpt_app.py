@@ -17,7 +17,7 @@ for package in required_packages:
     try:
         package_name = package.split("==")[0].replace("-", "_")
         __import__(package_name)
-    except PackageNotFoundError:
+    except ImportError:
         print(f"[*] Installing {package}...")
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install", "--quiet", package]
@@ -63,7 +63,6 @@ class HackerGPTApp:
             print("[-] No GROQ_API_KEY found.")
         
         self.conversation = []
-        # Use Llama 3.1 8B as default - cheaper on tokens, less rate limit issues
         self.current_model = "Llama 3.1 8B"
         self.file_list = []
         self.is_processing = False
@@ -183,7 +182,7 @@ Rules:
         
         messages = [{"role": "system", "content": self.SYSTEM_PROMPT}]
         
-        for msg in self.conversation[-10:]:  # Only last 10 messages to save tokens
+        for msg in self.conversation[-10:]:
             messages.append(msg)
         
         messages.append({"role": "user", "content": full_message})
@@ -197,7 +196,7 @@ Rules:
                     model=model_id,
                     messages=messages,
                     temperature=0.9,
-                    max_tokens=2048,  # Reduced from 8192 to prevent rate limit
+                    max_tokens=2048,
                     top_p=0.95,
                     stream=False,
                 )
@@ -404,7 +403,7 @@ Rules:
             
             # Process files BEFORE clearing anything
             file_contents = []
-            current_files = list(self.file_list)  # Copy the list
+            current_files = list(self.file_list)
             for f in current_files:
                 try:
                     content = self.extract_text_from_file(f.path)
