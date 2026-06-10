@@ -542,7 +542,7 @@ Rules:
                 ],
                 bgcolor=colors["bg2"],
             )
-            page.dialog = dlg
+            page.overlay.append(dlg)
             dlg.open = True
             page.update()
         
@@ -571,7 +571,7 @@ Rules:
                 ],
                 bgcolor=colors["bg2"],
             )
-            page.dialog = dlg
+            page.overlay.append(dlg)
             dlg.open = True
             page.update()
         
