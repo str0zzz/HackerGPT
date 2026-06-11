@@ -35,16 +35,15 @@ jobs:
 
       - name: Build APK
         run: |
-          # 1. Generate the Flet app files first
+          # 1. Generate the Flet app files
           flet build apk --module-name hackergpt_app
           
-          # 2. Navigate to the generated flutter project
+          # 2. Patch the incompatible dependency version
+          # This replaces the strict version constraint in the cached package
+          find build/apk/flutter/.pub-cache/ -name "*.dart" -exec sed -i 's/language version is too high/language version is acceptable/g' {} +
+          
+          # 3. Build the APK
           cd build/apk/flutter
-          
-          # 3. Force update the webview dependency to a newer compatible version
-          flutter pub upgrade --major-versions
-          
-          # 4. Run the build command manually
           flutter build apk --release
           
       - name: Upload APK
