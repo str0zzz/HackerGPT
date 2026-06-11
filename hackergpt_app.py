@@ -1,39 +1,6 @@
 #!/usr/bin/env python3
 
 import os
-import flet as ft
-from dotenv import load_dotenv
-
-# Libraries used in the project
-import groq
-import PyPDF2
-import docx
-from PIL import Image
-
-# Start your code here
-
-required_packages = [
-    "flet==0.27.1",
-    "groq==0.19.0",
-    "pypdf2>=3.0.0",
-    "python-docx==1.1.2",
-    "Pillow==10.4.0",
-    "python-dotenv>=1.0.0",
-]
-
-for package in required_packages:
-    try:
-        package_name = package.split("==")[0].replace("-", "_")
-        __import__(package_name)
-    except ImportError:
-        print(f"[*] Installing {package}...")
-        subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", "--quiet", package]
-        )
-        print(f"[+] {package} installed")
-
-# Now import everything
-import os
 import asyncio
 import tempfile
 import json
