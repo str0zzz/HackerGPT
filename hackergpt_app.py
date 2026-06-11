@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
 
-# Auto-install missing packages
-import subprocess
-import sys
+import os
+import flet as ft
+from dotenv import load_dotenv
+
+# Libraries used in the project
+import groq
+import PyPDF2
+import docx
+from PIL import Image
+
+# Start your code here
 
 required_packages = [
     "flet==0.27.1",
