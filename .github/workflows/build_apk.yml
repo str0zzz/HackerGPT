@@ -30,7 +30,8 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
+          flutter-version: '3.24.3' # Changed to a version compatible with your dependencies
+          channel: 'stable'
 
       - name: Build APK
         run: |
