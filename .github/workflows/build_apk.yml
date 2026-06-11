@@ -16,7 +16,6 @@ jobs:
           
       - name: Install Dependencies
         run: |
-          pip install --upgrade pip
           pip install flet==0.27.1 groq==0.19.0 pypdf2 python-docx pillow python-dotenv flet-cli
       
       - name: Setup Java
@@ -31,15 +30,21 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.3'
+          flutter-version: '3.22.6'
           channel: 'stable'
 
       - name: Build APK
+        env:
+          # Force the path so Flet doesn't download 3.27.4
+          FLUTTER_ROOT: /opt/hostedtoolcache/flutter/stable-3.22.6-x64/flutter
         run: |
-          # Accept licenses
+          # 1. Clean build directory
+          rm -rf build/
+          
+          # 2. Accept licenses
           yes | sdkmanager --licenses || true
           
-          # Run build without the --no-venv flag
+          # 3. Force Flet to build using the currently installed flutter version
           flet build apk --module-name hackergpt_app
           
       - name: Upload APK
