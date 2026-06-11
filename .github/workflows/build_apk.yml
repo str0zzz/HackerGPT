@@ -16,7 +16,9 @@ jobs:
           
       - name: Install Dependencies
         run: |
-          pip install flet==0.27.1 groq==0.19.0 pypdf2 python-docx pillow python-dotenv
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flet-cli
       
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -29,9 +31,8 @@ jobs:
         
       - name: Build APK
         run: |
-          pip install flet-cli
           yes | sdkmanager --licenses || true
-          yes | flet build apk --module-name hackergpt_app
+          flet build apk --module-name hackergpt_app
           
       - name: Upload APK
         uses: actions/upload-artifact@v4
