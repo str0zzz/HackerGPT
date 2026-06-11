@@ -35,13 +35,20 @@ jobs:
 
       - name: Build APK
         run: |
-          # Clean existing build artifacts to avoid version conflicts
-          rm -rf build/
-          yes | sdkmanager --licenses || true
+          # 1. Generate the Flet app files first
           flet build apk --module-name hackergpt_app
+          
+          # 2. Navigate to the generated flutter project
+          cd build/apk/flutter
+          
+          # 3. Force update the webview dependency to a newer compatible version
+          flutter pub upgrade --major-versions
+          
+          # 4. Run the build command manually
+          flutter build apk --release
           
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: HackerGPT
-          path: build/apk/
+          path: build/apk/flutter/build/app/outputs/flutter-apk/app-release.apk
