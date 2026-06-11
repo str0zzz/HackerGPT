@@ -30,24 +30,25 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.3'
+          flutter-version: '3.22.3'
           channel: 'stable'
 
       - name: Build APK
+        env:
+          # Force Flet to use the existing path instead of downloading 3.27.4
+          FLET_FORCE_FLUTTER_VERSION: '3.22.3'
+          # Ensure Flet doesn't try to auto-update the SDK
+          FLUTTER_ROOT: /opt/hostedtoolcache/flutter/stable-3.22.3-x64/flutter
         run: |
-          # 1. Generate the Flet app files
+          # Clean up previous failed builds
+          rm -rf build/
+          yes | sdkmanager --licenses || true
+          
+          # Run build with the forced SDK
           flet build apk --module-name hackergpt_app
-          
-          # 2. Patch the incompatible dependency version
-          # This replaces the strict version constraint in the cached package
-          find build/apk/flutter/.pub-cache/ -name "*.dart" -exec sed -i 's/language version is too high/language version is acceptable/g' {} +
-          
-          # 3. Build the APK
-          cd build/apk/flutter
-          flutter build apk --release
           
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: HackerGPT
-          path: build/apk/flutter/build/app/outputs/flutter-apk/app-release.apk
+          path: build/apk/
